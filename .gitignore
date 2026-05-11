@@ -4,6 +4,7 @@ node_modules/
 .vibe/runs/
 .vibe/batches/
 .vibe/queues/
+.vibe/project-plans/
 .vibe/inbox/
 .vibe/processed/
 .vibe/failed/

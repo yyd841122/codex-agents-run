@@ -7,7 +7,10 @@ const { inspectRun } = require("./orchestrator/inspect");
 const { runBatch } = require("./orchestrator/batch");
 const { runQueue } = require("./orchestrator/queue");
 const { runDoctor } = require("./orchestrator/doctor");
+const { createProjectPlan, createProjectPlanId, projectPlanPaths } = require("./planner/project-planner");
+const { createProjectPlanReport } = require("./reports/project-plan-report");
 const { loadDotEnv } = require("./tools/env");
+const { ensureDir, writeJson, writeText } = require("./tools/files");
 const { loadConfig, resolveRunOptions } = require("./config/config");
 
 async function main() {
@@ -43,6 +46,29 @@ async function main() {
     if (result.checkpoint) {
       console.log(`Git checkpoint: ${result.checkpoint.status} - ${result.checkpoint.summary}`);
     }
+    return;
+  }
+
+  if (command === "plan") {
+    const request = collectRequest(args.slice(1));
+    const requirement = request.options["from-file"]
+      ? fs.readFileSync(path.resolve(cwd, request.options["from-file"]), "utf8").trim()
+      : request.text;
+    if (!requirement) {
+      throw new Error("Missing requirement text. Example: vibe plan --from-file requirements/erp.txt");
+    }
+
+    const planId = createProjectPlanId();
+    const paths = projectPlanPaths(cwd, planId);
+    const plan = createProjectPlan({ requirement });
+    const report = createProjectPlanReport(plan);
+    ensureDir(paths.dir);
+    writeJson(paths.json, plan);
+    writeText(paths.report, report);
+
+    console.log(`\nProject plan complete: ${planId}`);
+    console.log(`JSON: ${path.relative(cwd, paths.json)}`);
+    console.log(`Report: ${path.relative(cwd, paths.report)}`);
     return;
   }
 
@@ -130,6 +156,7 @@ function printHelp() {
 
 Usage:
   vibe run "create a snake game web app" [--yes] [--dry-run]
+  vibe plan --from-file requirements/erp.txt
   vibe run --from-file requirements/snake.txt --yes
   vibe run "create a snake game web app" --llm deepseek --yes
   vibe batch tasks.json --yes

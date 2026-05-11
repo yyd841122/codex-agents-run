@@ -82,6 +82,7 @@ Before a new code task writes files, the runner clears the target `generated/<pr
 
 ```bash
 node src/cli.js run "create a snake game web app" --yes
+node src/cli.js plan --from-file examples/requirements/erp.zh.txt
 node src/cli.js run --from-file examples/requirements/mobile-snake.zh.txt --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --dry-run
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
@@ -98,6 +99,14 @@ node src/cli.js inspect latest
 node src/cli.js inspect list
 node src/cli.js inspect .vibe/runs/<run-id>
 ```
+
+For large systems such as ERP, start with project planning instead of direct code generation:
+
+```bash
+node src/cli.js plan --from-file examples/requirements/erp.zh.txt
+```
+
+Project plans are written to `.vibe/project-plans/<project-plan-id>/` and include modules, phases, Agent responsibilities, draft data model, draft API contracts, delivery batches, acceptance criteria, and risks.
 
 Batch files can be a JSON array:
 

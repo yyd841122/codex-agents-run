@@ -26,14 +26,16 @@ async function runWorkflow(options) {
     yes: options.yes,
     llm: options.llm || "offline",
     model: options.model || "deepseek-v4-flash",
-    deepseekTimeoutMs: options.deepseekTimeoutMs
+    deepseekTimeoutMs: options.deepseekTimeoutMs,
+    agentTemplatesDir: options.agentTemplatesDir
   };
 
   writeJson(path.join(runDir, "git-before.json"), captureGitSnapshot(options.cwd));
 
   const plan = createPlan({
     requirement: options.requirement,
-    cwd: options.cwd
+    cwd: options.cwd,
+    fixMaxAttempts: options.fixMaxAttempts
   });
 
   writeJson(path.join(runDir, "plan.json"), plan);
@@ -311,7 +313,11 @@ function createPromptWithContext({ plan, task, context, priorResults = [] }) {
   const fileContext = needsFileContext
     ? collectFileContext({ cwd: context.cwd, scopes: task.scope })
     : [];
-  const agentTemplate = loadAgentTemplate({ cwd: context.cwd, agent: task.agent });
+  const agentTemplate = loadAgentTemplate({
+    cwd: context.cwd,
+    agent: task.agent,
+    templatesDir: context.agentTemplatesDir
+  });
 
   return buildPrompt({ plan, task, priorResults, fileContext, agentTemplate });
 }

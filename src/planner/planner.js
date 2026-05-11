@@ -62,7 +62,7 @@ function createPlan(input) {
     ],
     tasks,
     fixPolicy: {
-      maxAttempts: 3
+      maxAttempts: input.fixMaxAttempts || 3
     }
   };
 }

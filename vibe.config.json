@@ -1,0 +1,20 @@
+{
+  "llm": {
+    "provider": "offline",
+    "model": "deepseek-v4-flash",
+    "deepseekTimeoutMs": 90000
+  },
+  "workflow": {
+    "fixMaxAttempts": 3
+  },
+  "agents": {
+    "templatesDir": "templates/agents"
+  },
+  "git": {
+    "checkpoint": false,
+    "push": false
+  },
+  "batch": {
+    "continueOnFailure": false
+  }
+}

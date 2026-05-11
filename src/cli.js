@@ -5,9 +5,12 @@ const { runWorkflow } = require("./orchestrator/workflow");
 const { inspectRun } = require("./orchestrator/inspect");
 const { runBatch } = require("./orchestrator/batch");
 const { loadDotEnv } = require("./tools/env");
+const { loadConfig, resolveRunOptions } = require("./config/config");
 
 async function main() {
   loadDotEnv(process.cwd());
+  const cwd = process.cwd();
+  const config = loadConfig(cwd);
 
   const args = process.argv.slice(2);
   const command = args[0];
@@ -23,17 +26,10 @@ async function main() {
       throw new Error("Missing requirement text. Example: vibe run \"create a snake game web app\"");
     }
 
-    const cwd = process.cwd();
+    const runOptions = resolveRunOptions({ cwd, request, config });
     const result = await runWorkflow({
-      cwd,
       requirement: request.text,
-      yes: request.flags.has("yes"),
-      dryRun: request.flags.has("dry-run"),
-      llm: request.options.llm || process.env.VIBE_LLM || "offline",
-      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
-      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS,
-      gitCheckpoint: request.flags.has("git-checkpoint"),
-      gitPush: request.flags.has("git-push")
+      ...runOptions
     });
 
     console.log(`\nRun complete: ${result.runId}`);
@@ -46,7 +42,7 @@ async function main() {
 
   if (command === "inspect") {
     const target = args[1] || "latest";
-    const summary = inspectRun(process.cwd(), target);
+    const summary = inspectRun(cwd, target);
     console.log(summary);
     return;
   }
@@ -54,18 +50,10 @@ async function main() {
   if (command === "batch") {
     const request = collectRequest(args.slice(1));
     const batchFile = request.text;
-    const cwd = process.cwd();
+    const runOptions = resolveRunOptions({ cwd, request, config });
     const result = await runBatch({
-      cwd,
       file: batchFile,
-      yes: request.flags.has("yes"),
-      dryRun: request.flags.has("dry-run"),
-      continueOnFailure: request.flags.has("continue-on-failure"),
-      llm: request.options.llm || process.env.VIBE_LLM || "offline",
-      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
-      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS,
-      gitCheckpoint: request.flags.has("git-checkpoint"),
-      gitPush: request.flags.has("git-push")
+      ...runOptions
     });
 
     console.log(`\nBatch complete: ${result.batchId}`);
@@ -88,7 +76,7 @@ function collectRequest(args) {
       if (raw.includes("=")) {
         const [key, ...valueParts] = raw.split("=");
         options[key] = valueParts.join("=");
-      } else if (["llm", "model", "deepseek-timeout-ms"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
+      } else if (["llm", "model", "deepseek-timeout-ms", "fix-max-attempts", "agent-templates-dir"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
         options[raw] = args[index + 1];
         index += 1;
       } else {
@@ -124,6 +112,8 @@ Options:
   --llm      Model backend: offline or deepseek.
   --model    DeepSeek model name. Default: deepseek-v4-flash.
   --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.
+  --fix-max-attempts  Maximum Fix Agent attempts. Default: 3.
+  --agent-templates-dir  Directory for Agent Markdown templates.
   --continue-on-failure  Batch mode only. Continue after a failed run.
   --git-checkpoint  Create a Git checkpoint commit with the run record and trackable changed files.
   --git-push  Push after creating a Git checkpoint. Requires --git-checkpoint.

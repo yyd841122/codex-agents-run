@@ -15,6 +15,35 @@ User requirement
 
 The MVP runs offline by default for local workflow validation. It can also call DeepSeek through its OpenAI-compatible API.
 
+## Configuration
+
+Runtime defaults live in `vibe.config.json`:
+
+```json
+{
+  "llm": {
+    "provider": "offline",
+    "model": "deepseek-v4-flash",
+    "deepseekTimeoutMs": 90000
+  },
+  "workflow": {
+    "fixMaxAttempts": 3
+  },
+  "agents": {
+    "templatesDir": "templates/agents"
+  },
+  "git": {
+    "checkpoint": false,
+    "push": false
+  },
+  "batch": {
+    "continueOnFailure": false
+  }
+}
+```
+
+Precedence is: CLI flags, environment variables, `vibe.config.json`, then built-in defaults.
+
 ## Quick Start
 
 ```bash
@@ -80,6 +109,13 @@ Or an object with a `tasks` array:
 Batch run records are written to `.vibe/batches/<batch-id>/`.
 
 Git checkpoints are optional. When `--git-checkpoint` is enabled, the runner writes a compact tracked record to `records/runs/<run-id>.json` and creates a Git commit for that record plus any generated files that are not ignored by Git. Add `--git-push` to push the checkpoint commit.
+
+Useful configurable CLI overrides:
+
+```bash
+node src/cli.js run "create a snake game web app" --fix-max-attempts 5
+node src/cli.js run "create a snake game web app" --agent-templates-dir templates/agents
+```
 
 ## DeepSeek Setup
 

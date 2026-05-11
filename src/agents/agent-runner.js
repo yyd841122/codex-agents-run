@@ -2,7 +2,7 @@ const path = require("path");
 const { createSnakeGame } = require("../generators/snake-game");
 const { createGenericWebApp } = require("../generators/generic-web-app");
 const { callDeepSeek } = require("../llm/deepseek-client");
-const { ensureDir, writeText } = require("../tools/files");
+const { ensureDir, writeText, emptyDirInside } = require("../tools/files");
 const { enforceSmokeTestPolicy } = require("../tools/smoke-test-policy");
 
 async function runAgentTask({ task, plan, prompt, context }) {
@@ -15,13 +15,14 @@ async function runAgentTask({ task, plan, prompt, context }) {
   }
 
   if (task.agent === "coder") {
+    const removed = emptyDirInside(context.cwd, plan.outputDir);
     const outputRoot = path.join(context.cwd, plan.outputDir);
     const files = plan.project.slug === "snake-game"
       ? createSnakeGame(outputRoot)
       : createGenericWebApp(outputRoot, plan);
     const policyFiles = enforceSmokeTestPolicy({ cwd: context.cwd, plan });
 
-    return result(task, "completed", unique([...files, ...policyFiles]), `Generated ${plan.project.name} files.`, []);
+    return result(task, "completed", unique([...files, ...policyFiles]), `Generated ${plan.project.name} files. Cleaned ${removed.length} stale file(s).`, []);
   }
 
   if (task.agent === "planner") {
@@ -82,6 +83,10 @@ async function runDeepSeekTask({ task, plan, prompt, context }) {
     });
 
     const parsed = parseJson(response.content);
+
+    if (task.kind === "code") {
+      emptyDirInside(context.cwd, plan.outputDir);
+    }
 
     if (task.kind === "code" || task.kind === "fix") {
       const changedFiles = writeModelFiles({

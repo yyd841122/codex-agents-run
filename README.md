@@ -76,6 +76,8 @@ generated/
   snake-game/
 ```
 
+Before a new code task writes files, the runner clears the target `generated/<project>` directory. This prevents stale files from previous runs from polluting review results.
+
 ## CLI
 
 ```bash

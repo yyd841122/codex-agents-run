@@ -8,6 +8,7 @@ const { runBatch } = require("./orchestrator/batch");
 const { runQueue } = require("./orchestrator/queue");
 const { runDoctor } = require("./orchestrator/doctor");
 const { createProjectPlan, createProjectPlanId, projectPlanPaths } = require("./planner/project-planner");
+const { expandProjectPlan } = require("./planner/plan-expander");
 const { createProjectPlanReport } = require("./reports/project-plan-report");
 const { loadDotEnv } = require("./tools/env");
 const { ensureDir, writeJson, writeText } = require("./tools/files");
@@ -76,6 +77,16 @@ async function main() {
     const target = args[1] || "latest";
     const summary = inspectRun(cwd, target);
     console.log(summary);
+    return;
+  }
+
+  if (command === "expand-plan") {
+    const planFile = args[1];
+    const result = expandProjectPlan({ cwd, planFile });
+    console.log(`\nProject tasks expanded: ${result.expansionId}`);
+    console.log(`Output: ${path.relative(cwd, result.outputDir)}`);
+    console.log(`Batch: ${path.relative(cwd, result.batchPath)}`);
+    console.log(`Report: ${path.relative(cwd, result.reportPath)}`);
     return;
   }
 
@@ -157,6 +168,7 @@ function printHelp() {
 Usage:
   vibe run "create a snake game web app" [--yes] [--dry-run]
   vibe plan --from-file requirements/erp.txt
+  vibe expand-plan .vibe/project-plans/<id>/project-plan.json
   vibe run --from-file requirements/snake.txt --yes
   vibe run "create a snake game web app" --llm deepseek --yes
   vibe batch tasks.json --yes

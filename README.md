@@ -83,6 +83,7 @@ Before a new code task writes files, the runner clears the target `generated/<pr
 ```bash
 node src/cli.js run "create a snake game web app" --yes
 node src/cli.js plan --from-file examples/requirements/erp.zh.txt
+node src/cli.js expand-plan .vibe/project-plans/<project-plan-id>/project-plan.json
 node src/cli.js run --from-file examples/requirements/mobile-snake.zh.txt --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --dry-run
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
@@ -107,6 +108,19 @@ node src/cli.js plan --from-file examples/requirements/erp.zh.txt
 ```
 
 Project plans are written to `.vibe/project-plans/<project-plan-id>/` and include modules, phases, Agent responsibilities, draft data model, draft API contracts, delivery batches, acceptance criteria, and risks.
+
+After reviewing a project plan, expand it into executable module tasks:
+
+```bash
+node src/cli.js expand-plan .vibe/project-plans/<project-plan-id>/project-plan.json
+```
+
+Expanded project tasks are written to `.vibe/project-tasks/<project-tasks-id>/`. The generated `batch.json` can be passed directly to batch mode:
+
+```bash
+node src/cli.js batch .vibe/project-tasks/<project-tasks-id>/batch.json --yes --dry-run
+node src/cli.js batch .vibe/project-tasks/<project-tasks-id>/batch.json --llm deepseek --yes --continue-on-failure
+```
 
 Batch files can be a JSON array:
 

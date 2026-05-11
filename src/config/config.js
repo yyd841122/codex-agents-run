@@ -8,7 +8,8 @@ const DEFAULT_CONFIG = {
     deepseekTimeoutMs: 90000
   },
   workflow: {
-    fixMaxAttempts: 3
+    fixMaxAttempts: 3,
+    qualityFixWarnings: false
   },
   agents: {
     templatesDir: "templates/agents"
@@ -53,6 +54,7 @@ function resolveRunOptions({ cwd, request, config }) {
     model: request.options.model || process.env.DEEPSEEK_MODEL || values.llm.model,
     deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS || values.llm.deepseekTimeoutMs,
     fixMaxAttempts: numberOption(request.options["fix-max-attempts"], values.workflow.fixMaxAttempts),
+    qualityFixWarnings: request.flags.has("quality-fix") || values.workflow.qualityFixWarnings,
     agentTemplatesDir: request.options["agent-templates-dir"] || values.agents.templatesDir,
     gitCheckpoint: request.flags.has("git-checkpoint") || values.git.checkpoint,
     gitPush: request.flags.has("git-push") || values.git.push,

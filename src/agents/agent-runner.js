@@ -46,6 +46,19 @@ async function runAgentTask({ task, plan, prompt, context }) {
       });
     }
 
+    if (process.env.VIBE_FORCE_REVIEW_WARNING === "1") {
+      return result(task, "completed", [], "Forced warning review finding for quality fix verification.", [], {
+        findings: [
+          {
+            severity: "warning",
+            file: "generated/snake-game/style.css",
+            issue: "Forced warning finding.",
+            recommendation: "Resolve the forced warning finding when quality fix is enabled."
+          }
+        ]
+      });
+    }
+
     return result(task, "completed", [], "Reviewed acceptance criteria coverage for generated implementation.", [
       "Offline reviewer checks structure only; connect a real model for deeper code review."
     ], { findings: [] });

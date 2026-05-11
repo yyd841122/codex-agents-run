@@ -148,6 +148,7 @@ Options:
   --model    DeepSeek model name. Default: deepseek-v4-flash.
   --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.
   --fix-max-attempts  Maximum Fix Agent attempts. Default: 3.
+  --quality-fix  After a completed review, run one optional fix pass for warning findings.
   --agent-templates-dir  Directory for Agent Markdown templates.
   --continue-on-failure  Batch mode only. Continue after a failed run.
   --queue-inbox-dir  Directory for queue input files.

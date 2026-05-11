@@ -5,7 +5,8 @@
     "deepseekTimeoutMs": 90000
   },
   "workflow": {
-    "fixMaxAttempts": 3
+    "fixMaxAttempts": 3,
+    "qualityFixWarnings": false
   },
   "agents": {
     "templatesDir": "templates/agents"

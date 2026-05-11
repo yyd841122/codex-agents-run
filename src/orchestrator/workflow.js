@@ -204,6 +204,8 @@ async function runWorkflow(options) {
       };
       taskResults.push(manualIntervention);
       writeJson(path.join(tasksDir, `${manualIntervention.id}.json`), manualIntervention);
+    } else if (options.qualityFixWarnings) {
+      await runQualityFixIfNeeded({ plan, taskResults, promptsDir, tasksDir, context, options });
     }
   }
 
@@ -276,6 +278,82 @@ async function runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksD
   });
   taskResults.push(reviewAfterFix);
   writeJson(path.join(tasksDir, `${reviewAfterFixTask.id}.json`), reviewAfterFix);
+}
+
+async function runQualityFixIfNeeded({ plan, taskResults, promptsDir, tasksDir, context, options }) {
+  const latestReview = [...taskResults].reverse().find((task) => task.kind === "review" && task.status === "completed");
+  const warnings = latestReview && Array.isArray(latestReview.findings)
+    ? latestReview.findings.filter((finding) => finding.severity === "warning")
+    : [];
+
+  if (!warnings.length) {
+    return;
+  }
+
+  const qualityTask = {
+    id: "task-quality-fix-001",
+    title: "Apply non-blocking review warning improvements",
+    agent: "fixer",
+    kind: "fix",
+    scope: plan.writeScopes,
+    acceptance: [
+      "Resolve warning-level review findings where the fix is low risk",
+      "Do not introduce unrelated rewrites",
+      "Preserve passing tests and acceptance behavior"
+    ],
+    dependsOn: [latestReview.id]
+  };
+  const prompt = createPromptWithContext({ plan, task: qualityTask, context, priorResults: taskResults });
+  writeText(path.join(promptsDir, `${qualityTask.id}-${qualityTask.agent}.md`), prompt);
+  logTaskStart(qualityTask, context);
+  const qualityResult = await runAgentTask({ task: qualityTask, plan, prompt, context });
+  taskResults.push(qualityResult);
+  writeJson(path.join(tasksDir, `${qualityTask.id}.json`), qualityResult);
+
+  if (qualityResult.status !== "completed") {
+    return;
+  }
+
+  const testTasks = plan.tasks.filter((task) => task.kind === "test");
+  for (const testTask of testTasks) {
+    const retry = await runAllowedCommand({
+      cwd: options.cwd,
+      command: testTask.command,
+      yes: options.yes
+    });
+    const retryResult = {
+      id: `${testTask.id}-quality-retry-1`,
+      title: `Retry ${testTask.title} after quality fix`,
+      agent: testTask.agent,
+      kind: testTask.kind,
+      status: retry.exitCode === 0 ? "completed" : "failed",
+      changedFiles: [],
+      summary: `Retried after quality fix: ${retry.exitCode === 0 ? "passed" : "failed"}.`,
+      risks: [],
+      completedAt: new Date().toISOString(),
+      shell: retry
+    };
+    taskResults.push(retryResult);
+    writeJson(path.join(tasksDir, `${retryResult.id}.json`), retryResult);
+  }
+
+  const reviewTask = plan.tasks.find((task) => task.kind === "review");
+  if (!reviewTask) {
+    return;
+  }
+
+  const qualityReviewTask = {
+    ...reviewTask,
+    id: `${reviewTask.id}-quality-review-1`,
+    title: `${reviewTask.title} after quality fix`,
+    dependsOn: [qualityTask.id]
+  };
+  const reviewPrompt = createPromptWithContext({ plan, task: qualityReviewTask, context, priorResults: taskResults });
+  writeText(path.join(promptsDir, `${qualityReviewTask.id}-${qualityReviewTask.agent}.md`), reviewPrompt);
+  logTaskStart(qualityReviewTask, context);
+  const reviewResult = await runAgentTask({ task: qualityReviewTask, plan, prompt: reviewPrompt, context });
+  taskResults.push(reviewResult);
+  writeJson(path.join(tasksDir, `${qualityReviewTask.id}.json`), reviewResult);
 }
 
 function summarizeFailedCheck(task) {

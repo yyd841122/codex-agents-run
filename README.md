@@ -27,7 +27,8 @@ Runtime defaults live in `vibe.config.json`:
     "deepseekTimeoutMs": 90000
   },
   "workflow": {
-    "fixMaxAttempts": 3
+    "fixMaxAttempts": 3,
+    "qualityFixWarnings": false
   },
   "agents": {
     "templatesDir": "templates/agents"
@@ -85,6 +86,7 @@ node src/cli.js run "create a snake game web app" --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --deepseek-timeout-ms 120000
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-checkpoint
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-checkpoint --git-push
+node src/cli.js run "create a snake game web app" --llm deepseek --yes --quality-fix
 node src/cli.js batch examples/tasks.sample.json --yes
 node src/cli.js batch examples/tasks.sample.json --yes --continue-on-failure
 node src/cli.js queue --yes
@@ -118,6 +120,8 @@ Or an object with a `tasks` array:
 Batch run records are written to `.vibe/batches/<batch-id>/`.
 
 Git checkpoints are optional. When `--git-checkpoint` is enabled, the runner writes a compact tracked record to `records/runs/<run-id>.json` and creates a Git commit for that record plus any generated files that are not ignored by Git. Add `--git-push` to push the checkpoint commit.
+
+Quality fix is optional. Blocking review findings still trigger mandatory Fix Agent work. Warning findings do not block delivery, but `--quality-fix` or `workflow.qualityFixWarnings: true` runs one extra low-risk Fix Agent pass, then reruns tests and review.
 
 Queue mode is the MVP external entry point. Drop `.txt` or `.json` requirement files into the inbox directory, then run:
 

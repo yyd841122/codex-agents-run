@@ -32,6 +32,9 @@ function createReport({ plan, taskResults, fixResults = [] }) {
     `## Risks`,
     ...collectRisks(taskResults),
     "",
+    `## Review Findings`,
+    ...collectFindings(taskResults),
+    "",
     `## Final Status`,
     finalStatus(failed, manualIntervention),
     fixResults.length ? `\nFix attempts: ${fixResults.length}/${plan.fixPolicy.maxAttempts}` : "",
@@ -42,6 +45,30 @@ function createReport({ plan, taskResults, fixResults = [] }) {
 function collectRisks(taskResults) {
   const risks = taskResults.flatMap((task) => task.risks || []);
   return risks.length ? risks.map((risk) => `- ${risk}`) : ["- No known blocking risks in MVP run."];
+}
+
+function collectFindings(taskResults) {
+  const findings = taskResults.flatMap((task) => {
+    if (!Array.isArray(task.findings) || !task.findings.length) {
+      return [];
+    }
+
+    return task.findings.map((finding) => ({
+      taskId: task.id,
+      ...finding
+    }));
+  });
+
+  if (!findings.length) {
+    return ["- None"];
+  }
+
+  return findings.map((finding) => [
+    `- ${finding.severity || "info"} ${finding.taskId}`,
+    finding.file ? `  file: ${finding.file}` : "",
+    finding.issue ? `  issue: ${finding.issue}` : "",
+    finding.recommendation ? `  recommendation: ${finding.recommendation}` : ""
+  ].filter(Boolean).join("\n"));
 }
 
 function unique(values) {

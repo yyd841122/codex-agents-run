@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const path = require("path");
+const fs = require("fs");
 const { runWorkflow } = require("./orchestrator/workflow");
 const { inspectRun } = require("./orchestrator/inspect");
 const { runBatch } = require("./orchestrator/batch");
@@ -24,13 +25,16 @@ async function main() {
 
   if (command === "run") {
     const request = collectRequest(args.slice(1));
-    if (!request.text) {
+    const requirement = request.options["from-file"]
+      ? fs.readFileSync(path.resolve(cwd, request.options["from-file"]), "utf8").trim()
+      : request.text;
+    if (!requirement) {
       throw new Error("Missing requirement text. Example: vibe run \"create a snake game web app\"");
     }
 
     const runOptions = resolveRunOptions({ cwd, request, config });
     const result = await runWorkflow({
-      requirement: request.text,
+      requirement,
       ...runOptions
     });
 
@@ -101,7 +105,8 @@ function collectRequest(args) {
         "agent-templates-dir",
         "queue-inbox-dir",
         "queue-processed-dir",
-        "queue-failed-dir"
+        "queue-failed-dir",
+        "from-file"
       ].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
         options[raw] = args[index + 1];
         index += 1;
@@ -125,6 +130,7 @@ function printHelp() {
 
 Usage:
   vibe run "create a snake game web app" [--yes] [--dry-run]
+  vibe run --from-file requirements/snake.txt --yes
   vibe run "create a snake game web app" --llm deepseek --yes
   vibe batch tasks.json --yes
   vibe batch tasks.json --yes --continue-on-failure
@@ -137,6 +143,7 @@ Usage:
 Options:
   --yes      Run allowed shell commands without interactive confirmation.
   --dry-run  Generate plan, prompts, and report without writing project files.
+  --from-file  Read requirement text from a UTF-8 file.
   --llm      Model backend: offline or deepseek.
   --model    DeepSeek model name. Default: deepseek-v4-flash.
   --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.

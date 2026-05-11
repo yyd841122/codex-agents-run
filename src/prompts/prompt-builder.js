@@ -31,6 +31,9 @@ function buildPrompt({ plan, task, priorResults = [], fileContext = [], agentTem
     "- Only work inside declared writable scope.",
     "- Return structured output with status, changed files, summary, and risks.",
     "- Do not take over orchestration responsibilities.",
+    task.kind === "code" || task.kind === "fix"
+      ? "- For browser apps, smoke-test.js must run in plain Node.js using fs/string assertions only; do not use document, window, DOM mocks, jsdom, eval, or require browser scripts."
+      : "",
     task.kind === "review"
       ? "- Mark findings as blocking only when they must be fixed before user acceptance."
       : "",

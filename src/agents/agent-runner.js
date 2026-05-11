@@ -3,6 +3,7 @@ const { createSnakeGame } = require("../generators/snake-game");
 const { createGenericWebApp } = require("../generators/generic-web-app");
 const { callDeepSeek } = require("../llm/deepseek-client");
 const { ensureDir, writeText } = require("../tools/files");
+const { enforceSmokeTestPolicy } = require("../tools/smoke-test-policy");
 
 async function runAgentTask({ task, plan, prompt, context }) {
   if (context.dryRun) {
@@ -18,8 +19,9 @@ async function runAgentTask({ task, plan, prompt, context }) {
     const files = plan.project.slug === "snake-game"
       ? createSnakeGame(outputRoot)
       : createGenericWebApp(outputRoot, plan);
+    const policyFiles = enforceSmokeTestPolicy({ cwd: context.cwd, plan });
 
-    return result(task, "completed", files, `Generated ${plan.project.name} files.`, []);
+    return result(task, "completed", unique([...files, ...policyFiles]), `Generated ${plan.project.name} files.`, []);
   }
 
   if (task.agent === "planner") {
@@ -74,12 +76,14 @@ async function runDeepSeekTask({ task, plan, prompt, context }) {
         scope: task.scope,
         files: parsed.files || []
       });
+      const policyFiles = enforceSmokeTestPolicy({ cwd: context.cwd, plan });
+      const finalChangedFiles = unique([...changedFiles, ...policyFiles]);
 
       return result(
         task,
         parsed.status || "completed",
-        changedFiles,
-        parsed.summary || `DeepSeek generated ${changedFiles.length} file(s).`,
+        finalChangedFiles,
+        appendPolicySummary(parsed.summary || `DeepSeek generated ${finalChangedFiles.length} file(s).`, policyFiles),
         parsed.risks || []
       );
     }
@@ -185,6 +189,18 @@ function result(task, status, changedFiles, summary, risks, extra = {}) {
     completedAt: new Date().toISOString(),
     ...extra
   };
+}
+
+function appendPolicySummary(summary, policyFiles) {
+  if (!policyFiles.length) {
+    return summary;
+  }
+
+  return `${summary} Runner replaced browser-dependent smoke test with a static Node smoke test.`;
+}
+
+function unique(values) {
+  return [...new Set(values)];
 }
 
 module.exports = { runAgentTask };

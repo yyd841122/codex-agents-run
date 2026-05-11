@@ -79,6 +79,7 @@ generated/
 
 ```bash
 node src/cli.js run "create a snake game web app" --yes
+node src/cli.js run --from-file examples/requirements/mobile-snake.zh.txt --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --dry-run
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --deepseek-timeout-ms 120000
@@ -133,6 +134,8 @@ Text files use the whole file as the requirement. JSON files use:
 ```
 
 Completed queue files move to `.vibe/processed`; failed items move to `.vibe/failed`. Queue reports are written to `.vibe/queues/<queue-id>/`.
+
+On Windows, prefer `--from-file` or `queue` for Chinese requirements so the CLI reads UTF-8 text directly instead of depending on terminal argument encoding.
 
 Useful configurable CLI overrides:
 

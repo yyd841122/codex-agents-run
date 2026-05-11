@@ -152,6 +152,8 @@ When the system cannot resolve an issue after 3 attempts, it writes `manual-inte
 - Writes are constrained to the current workspace.
 - Each task declares writable scopes.
 - Shell commands are checked against an allowlist.
+- Allowed shell commands include smoke tests, `npm test`, `npm run <script>`, safe `cd`, `git status`, `git add`, `git commit -m`, and normal `git push`.
+- Destructive or broad shell behavior is blocked, including command chaining, redirects, forced pushes, deletes, downloads, shutdown, and format commands.
 - Each run records plan, prompts, task logs, report, and Git before/after snapshots.
 - `.env`, `.vibe/runs/`, and `generated/` are excluded from Git by default.
 

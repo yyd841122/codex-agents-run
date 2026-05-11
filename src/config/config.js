@@ -19,6 +19,11 @@ const DEFAULT_CONFIG = {
   },
   batch: {
     continueOnFailure: false
+  },
+  queue: {
+    inboxDir: ".vibe/inbox",
+    processedDir: ".vibe/processed",
+    failedDir: ".vibe/failed"
   }
 };
 
@@ -51,7 +56,10 @@ function resolveRunOptions({ cwd, request, config }) {
     agentTemplatesDir: request.options["agent-templates-dir"] || values.agents.templatesDir,
     gitCheckpoint: request.flags.has("git-checkpoint") || values.git.checkpoint,
     gitPush: request.flags.has("git-push") || values.git.push,
-    continueOnFailure: request.flags.has("continue-on-failure") || values.batch.continueOnFailure
+    continueOnFailure: request.flags.has("continue-on-failure") || values.batch.continueOnFailure,
+    queueInboxDir: request.options["queue-inbox-dir"] || values.queue.inboxDir,
+    queueProcessedDir: request.options["queue-processed-dir"] || values.queue.processedDir,
+    queueFailedDir: request.options["queue-failed-dir"] || values.queue.failedDir
   };
 }
 

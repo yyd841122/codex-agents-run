@@ -4,6 +4,8 @@ const path = require("path");
 const { runWorkflow } = require("./orchestrator/workflow");
 const { inspectRun } = require("./orchestrator/inspect");
 const { runBatch } = require("./orchestrator/batch");
+const { runQueue } = require("./orchestrator/queue");
+const { runDoctor } = require("./orchestrator/doctor");
 const { loadDotEnv } = require("./tools/env");
 const { loadConfig, resolveRunOptions } = require("./config/config");
 
@@ -61,6 +63,21 @@ async function main() {
     return;
   }
 
+  if (command === "queue") {
+    const request = collectRequest(args.slice(1));
+    const runOptions = resolveRunOptions({ cwd, request, config });
+    const result = await runQueue(runOptions);
+
+    console.log(`\nQueue complete: ${result.queueId}`);
+    console.log(`Report: ${path.relative(cwd, result.reportPath)}`);
+    return;
+  }
+
+  if (command === "doctor") {
+    console.log(runDoctor({ cwd, config }));
+    return;
+  }
+
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -76,7 +93,16 @@ function collectRequest(args) {
       if (raw.includes("=")) {
         const [key, ...valueParts] = raw.split("=");
         options[key] = valueParts.join("=");
-      } else if (["llm", "model", "deepseek-timeout-ms", "fix-max-attempts", "agent-templates-dir"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
+      } else if ([
+        "llm",
+        "model",
+        "deepseek-timeout-ms",
+        "fix-max-attempts",
+        "agent-templates-dir",
+        "queue-inbox-dir",
+        "queue-processed-dir",
+        "queue-failed-dir"
+      ].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
         options[raw] = args[index + 1];
         index += 1;
       } else {
@@ -102,6 +128,8 @@ Usage:
   vibe run "create a snake game web app" --llm deepseek --yes
   vibe batch tasks.json --yes
   vibe batch tasks.json --yes --continue-on-failure
+  vibe queue --yes
+  vibe doctor
   vibe inspect latest
   vibe inspect list
   vibe inspect .vibe/runs/<run-id>
@@ -115,6 +143,9 @@ Options:
   --fix-max-attempts  Maximum Fix Agent attempts. Default: 3.
   --agent-templates-dir  Directory for Agent Markdown templates.
   --continue-on-failure  Batch mode only. Continue after a failed run.
+  --queue-inbox-dir  Directory for queue input files.
+  --queue-processed-dir  Directory for completed queue files.
+  --queue-failed-dir  Directory for failed queue files.
   --git-checkpoint  Create a Git checkpoint commit with the run record and trackable changed files.
   --git-push  Push after creating a Git checkpoint. Requires --git-checkpoint.
 `);

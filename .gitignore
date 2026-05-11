@@ -3,4 +3,9 @@ node_modules/
 .DS_Store
 .vibe/runs/
 .vibe/batches/
+.vibe/queues/
+.vibe/inbox/
+.vibe/processed/
+.vibe/failed/
 generated/
+records/runs/

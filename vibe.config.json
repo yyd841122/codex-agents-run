@@ -16,5 +16,10 @@
   },
   "batch": {
     "continueOnFailure": false
+  },
+  "queue": {
+    "inboxDir": ".vibe/inbox",
+    "processedDir": ".vibe/processed",
+    "failedDir": ".vibe/failed"
   }
 }

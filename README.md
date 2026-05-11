@@ -38,6 +38,11 @@ Runtime defaults live in `vibe.config.json`:
   },
   "batch": {
     "continueOnFailure": false
+  },
+  "queue": {
+    "inboxDir": ".vibe/inbox",
+    "processedDir": ".vibe/processed",
+    "failedDir": ".vibe/failed"
   }
 }
 ```
@@ -81,6 +86,9 @@ node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-che
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-checkpoint --git-push
 node src/cli.js batch examples/tasks.sample.json --yes
 node src/cli.js batch examples/tasks.sample.json --yes --continue-on-failure
+node src/cli.js queue --yes
+node src/cli.js queue --yes --queue-inbox-dir examples/inbox
+node src/cli.js doctor
 node src/cli.js inspect latest
 node src/cli.js inspect list
 node src/cli.js inspect .vibe/runs/<run-id>
@@ -110,11 +118,28 @@ Batch run records are written to `.vibe/batches/<batch-id>/`.
 
 Git checkpoints are optional. When `--git-checkpoint` is enabled, the runner writes a compact tracked record to `records/runs/<run-id>.json` and creates a Git commit for that record plus any generated files that are not ignored by Git. Add `--git-push` to push the checkpoint commit.
 
+Queue mode is the MVP external entry point. Drop `.txt` or `.json` requirement files into the inbox directory, then run:
+
+```bash
+node src/cli.js queue --yes
+```
+
+Text files use the whole file as the requirement. JSON files use:
+
+```json
+{
+  "requirement": "create a snake game web app"
+}
+```
+
+Completed queue files move to `.vibe/processed`; failed items move to `.vibe/failed`. Queue reports are written to `.vibe/queues/<queue-id>/`.
+
 Useful configurable CLI overrides:
 
 ```bash
 node src/cli.js run "create a snake game web app" --fix-max-attempts 5
 node src/cli.js run "create a snake game web app" --agent-templates-dir templates/agents
+node src/cli.js queue --queue-inbox-dir examples/inbox --dry-run
 ```
 
 ## DeepSeek Setup
@@ -196,6 +221,8 @@ When the system cannot resolve an issue after 3 attempts, it writes `manual-inte
 - Destructive or broad shell behavior is blocked, including command chaining, redirects, forced pushes, deletes, downloads, shutdown, and format commands.
 - Each run records plan, prompts, task logs, report, and Git before/after snapshots.
 - Optional `--git-checkpoint` commits a compact run record and any Git-trackable generated files.
+- `queue` mode processes external requirement files from an inbox directory.
+- `doctor` checks Node.js, config, Agent templates, Git, and DeepSeek readiness.
 - `.env`, `.vibe/runs/`, and `generated/` are excluded from Git by default.
 
 ## Next Milestones

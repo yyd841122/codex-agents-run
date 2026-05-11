@@ -7,6 +7,7 @@ const { ensureDir, writeJson, writeText } = require("../tools/files");
 const { captureGitSnapshot } = require("../tools/git");
 const { collectFileContext } = require("../tools/file-context");
 const { createReport } = require("../reports/report-generator");
+const { loadAgentTemplate } = require("../prompts/agent-templates");
 
 async function runWorkflow(options) {
   const runId = createRunId();
@@ -309,8 +310,9 @@ function createPromptWithContext({ plan, task, context, priorResults = [] }) {
   const fileContext = needsFileContext
     ? collectFileContext({ cwd: context.cwd, scopes: task.scope })
     : [];
+  const agentTemplate = loadAgentTemplate({ cwd: context.cwd, agent: task.agent });
 
-  return buildPrompt({ plan, task, priorResults, fileContext });
+  return buildPrompt({ plan, task, priorResults, fileContext, agentTemplate });
 }
 
 function logTaskStart(task, context) {

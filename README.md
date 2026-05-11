@@ -120,6 +120,16 @@ default timeout: 90000ms
 
 Review Agent reads generated files and can return structured `findings`. Any finding with `severity: "blocking"` triggers the Fix Agent.
 
+Agent behavior templates live in `templates/agents/*.md`. The runner loads the matching Markdown template for each task and embeds it into the generated prompt for that Agent. This means you can tune Agent behavior by editing files such as:
+
+```text
+templates/agents/coder.md
+templates/agents/reviewer.md
+templates/agents/fixer.md
+```
+
+The JavaScript code remains responsible for orchestration, safety checks, model calls, file writes, tests, retries, and reports. The Markdown templates define each Agent's role and working style.
+
 ## Fix Policy
 
 Fix Agent is limited to 3 attempts.

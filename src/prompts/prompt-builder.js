@@ -1,9 +1,15 @@
-function buildPrompt({ plan, task, priorResults = [], fileContext = [] }) {
+function buildPrompt({ plan, task, priorResults = [], fileContext = [], agentTemplate = null }) {
+  const role = agentTemplate && agentTemplate.content
+    ? agentTemplate.content
+    : findAgent(plan, task.agent);
+
   return [
     `# Agent: ${task.agent}`,
     "",
     `## Role`,
-    findAgent(plan, task.agent),
+    role,
+    "",
+    agentTemplate && agentTemplate.path ? `Template: ${agentTemplate.path}` : "",
     "",
     "## Project",
     `Requirement: ${plan.requirement}`,

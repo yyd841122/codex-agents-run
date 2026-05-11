@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vibe Task",
+  "type": "object",
+  "required": ["id", "title", "agent", "kind", "scope", "dependsOn", "acceptance"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "agent": { "type": "string" },
+    "kind": {
+      "type": "string",
+      "enum": ["analysis", "code", "test", "review", "fix", "report"]
+    },
+    "scope": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dependsOn": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "command": { "type": "string" }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "vibe-agent-mvp",
+  "version": "0.1.0",
+  "description": "A minimal multi-agent vibe coding orchestrator MVP.",
+  "type": "commonjs",
+  "bin": {
+    "vibe": "./src/cli.js"
+  },
+  "scripts": {
+    "vibe": "node ./src/cli.js",
+    "smoke": "node ./src/cli.js run \"create a snake game web app\" --yes",
+    "test": "node ./src/cli.js run \"create a snake game web app\" --yes --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

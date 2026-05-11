@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+
+const path = require("path");
+const { runWorkflow } = require("./orchestrator/workflow");
+const { inspectRun } = require("./orchestrator/inspect");
+const { loadDotEnv } = require("./tools/env");
+
+async function main() {
+  loadDotEnv(process.cwd());
+
+  const args = process.argv.slice(2);
+  const command = args[0];
+
+  if (!command || command === "--help" || command === "-h") {
+    printHelp();
+    return;
+  }
+
+  if (command === "run") {
+    const request = collectRequest(args.slice(1));
+    if (!request.text) {
+      throw new Error("Missing requirement text. Example: vibe run \"create a snake game web app\"");
+    }
+
+    const cwd = process.cwd();
+    const result = await runWorkflow({
+      cwd,
+      requirement: request.text,
+      yes: request.flags.has("yes"),
+      dryRun: request.flags.has("dry-run"),
+      llm: request.options.llm || process.env.VIBE_LLM || "offline",
+      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash"
+    });
+
+    console.log(`\nRun complete: ${result.runId}`);
+    console.log(`Report: ${path.relative(cwd, result.reportPath)}`);
+    return;
+  }
+
+  if (command === "inspect") {
+    const runPath = args[1];
+    if (!runPath) {
+      throw new Error("Missing run path. Example: vibe inspect .vibe/runs/<run-id>");
+    }
+    const summary = inspectRun(path.resolve(process.cwd(), runPath));
+    console.log(summary);
+    return;
+  }
+
+  throw new Error(`Unknown command: ${command}`);
+}
+
+function collectRequest(args) {
+  const flags = new Set();
+  const options = {};
+  const parts = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg.startsWith("--")) {
+      const raw = arg.slice(2);
+      if (raw.includes("=")) {
+        const [key, ...valueParts] = raw.split("=");
+        options[key] = valueParts.join("=");
+      } else if (["llm", "model"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
+        options[raw] = args[index + 1];
+        index += 1;
+      } else {
+        flags.add(raw);
+      }
+    } else {
+      parts.push(arg);
+    }
+  }
+
+  return {
+    text: parts.join(" ").trim(),
+    flags,
+    options
+  };
+}
+
+function printHelp() {
+  console.log(`Vibe Agent MVP
+
+Usage:
+  vibe run "create a snake game web app" [--yes] [--dry-run]
+  vibe run "create a snake game web app" --llm deepseek --yes
+  vibe inspect .vibe/runs/<run-id>
+
+Options:
+  --yes      Run allowed shell commands without interactive confirmation.
+  --dry-run  Generate plan, prompts, and report without writing project files.
+  --llm      Model backend: offline or deepseek.
+  --model    DeepSeek model name. Default: deepseek-v4-flash.
+`);
+}
+
+main().catch((error) => {
+  console.error(`Error: ${error.message}`);
+  process.exitCode = 1;
+});

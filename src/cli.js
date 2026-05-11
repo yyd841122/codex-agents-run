@@ -31,11 +31,16 @@ async function main() {
       dryRun: request.flags.has("dry-run"),
       llm: request.options.llm || process.env.VIBE_LLM || "offline",
       model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
-      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS
+      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS,
+      gitCheckpoint: request.flags.has("git-checkpoint"),
+      gitPush: request.flags.has("git-push")
     });
 
     console.log(`\nRun complete: ${result.runId}`);
     console.log(`Report: ${path.relative(cwd, result.reportPath)}`);
+    if (result.checkpoint) {
+      console.log(`Git checkpoint: ${result.checkpoint.status} - ${result.checkpoint.summary}`);
+    }
     return;
   }
 
@@ -58,7 +63,9 @@ async function main() {
       continueOnFailure: request.flags.has("continue-on-failure"),
       llm: request.options.llm || process.env.VIBE_LLM || "offline",
       model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
-      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS
+      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS,
+      gitCheckpoint: request.flags.has("git-checkpoint"),
+      gitPush: request.flags.has("git-push")
     });
 
     console.log(`\nBatch complete: ${result.batchId}`);
@@ -118,6 +125,8 @@ Options:
   --model    DeepSeek model name. Default: deepseek-v4-flash.
   --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.
   --continue-on-failure  Batch mode only. Continue after a failed run.
+  --git-checkpoint  Create a Git checkpoint commit with the run record and trackable changed files.
+  --git-push  Push after creating a Git checkpoint. Requires --git-checkpoint.
 `);
 }
 

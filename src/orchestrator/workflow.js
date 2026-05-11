@@ -4,7 +4,7 @@ const { buildPrompt } = require("../prompts/prompt-builder");
 const { runAgentTask } = require("../agents/agent-runner");
 const { runAllowedCommand } = require("../tools/shell");
 const { ensureDir, writeJson, writeText } = require("../tools/files");
-const { captureGitSnapshot } = require("../tools/git");
+const { captureGitSnapshot, createGitCheckpoint } = require("../tools/git");
 const { collectFileContext } = require("../tools/file-context");
 const { createReport } = require("../reports/report-generator");
 const { loadAgentTemplate } = require("../prompts/agent-templates");
@@ -209,8 +209,9 @@ async function runWorkflow(options) {
   const reportPath = path.join(runDir, "report.md");
   writeJson(path.join(runDir, "git-after.json"), captureGitSnapshot(options.cwd));
   writeText(reportPath, report);
+  const checkpoint = maybeCreateCheckpoint({ options, plan, taskResults, report, runId, runDir, reportPath });
 
-  return { runId, runDir, reportPath };
+  return { runId, runDir, reportPath, checkpoint };
 }
 
 function unresolvedFailedTests(taskResults) {
@@ -324,6 +325,49 @@ function logTaskStart(task, context) {
     ? "dry-run"
     : (context.llm === "deepseek" ? `deepseek/${context.model}` : context.llm);
   console.log(`Running ${task.id} (${task.agent}, ${task.kind}) with ${backend}...`);
+}
+
+function maybeCreateCheckpoint({ options, plan, taskResults, report, runId, runDir, reportPath }) {
+  if (!options.gitCheckpoint || options.dryRun) {
+    return null;
+  }
+
+  const recordDir = path.join(options.cwd, "records", "runs");
+  const recordPath = path.join(recordDir, `${runId}.json`);
+  const changedFiles = taskResults.flatMap((task) => task.changedFiles || []);
+  const record = {
+    runId,
+    requirement: plan.requirement,
+    finalStatus: extractFinalStatus(report),
+    outputDir: plan.outputDir,
+    changedFiles,
+    reportPath: path.relative(options.cwd, reportPath),
+    runDir: path.relative(options.cwd, runDir),
+    completedAt: new Date().toISOString()
+  };
+
+  ensureDir(recordDir);
+  writeJson(recordPath, record);
+
+  const checkpoint = createGitCheckpoint({
+    cwd: options.cwd,
+    message: `Vibe checkpoint ${runId}`,
+    paths: [recordPath, ...changedFiles],
+    push: options.gitPush
+  });
+  writeJson(path.join(runDir, "git-checkpoint.json"), checkpoint);
+  return checkpoint;
+}
+
+function extractFinalStatus(report) {
+  const marker = "## Final Status";
+  const markerIndex = report.indexOf(marker);
+  if (markerIndex === -1) {
+    return "Unknown";
+  }
+
+  const afterMarker = report.slice(markerIndex + marker.length).trim();
+  return afterMarker.split(/\r?\n/).find(Boolean) || "Unknown";
 }
 
 function createRunId() {

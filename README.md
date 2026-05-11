@@ -48,6 +48,8 @@ node src/cli.js run "create a snake game web app" --yes
 node src/cli.js run "create a snake game web app" --dry-run
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --deepseek-timeout-ms 120000
+node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-checkpoint
+node src/cli.js run "create a snake game web app" --llm deepseek --yes --git-checkpoint --git-push
 node src/cli.js batch examples/tasks.sample.json --yes
 node src/cli.js batch examples/tasks.sample.json --yes --continue-on-failure
 node src/cli.js inspect latest
@@ -76,6 +78,8 @@ Or an object with a `tasks` array:
 ```
 
 Batch run records are written to `.vibe/batches/<batch-id>/`.
+
+Git checkpoints are optional. When `--git-checkpoint` is enabled, the runner writes a compact tracked record to `records/runs/<run-id>.json` and creates a Git commit for that record plus any generated files that are not ignored by Git. Add `--git-push` to push the checkpoint commit.
 
 ## DeepSeek Setup
 
@@ -155,6 +159,7 @@ When the system cannot resolve an issue after 3 attempts, it writes `manual-inte
 - Allowed shell commands include smoke tests, `npm test`, `npm run <script>`, safe `cd`, `git status`, `git add`, `git commit -m`, and normal `git push`.
 - Destructive or broad shell behavior is blocked, including command chaining, redirects, forced pushes, deletes, downloads, shutdown, and format commands.
 - Each run records plan, prompts, task logs, report, and Git before/after snapshots.
+- Optional `--git-checkpoint` commits a compact run record and any Git-trackable generated files.
 - `.env`, `.vibe/runs/`, and `generated/` are excluded from Git by default.
 
 ## Next Milestones

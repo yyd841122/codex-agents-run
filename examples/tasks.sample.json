@@ -1,0 +1,10 @@
+{
+  "tasks": [
+    {
+      "requirement": "create a snake game web app"
+    },
+    {
+      "requirement": "create a todo web app"
+    }
+  ]
+}

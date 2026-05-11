@@ -3,6 +3,7 @@
 const path = require("path");
 const { runWorkflow } = require("./orchestrator/workflow");
 const { inspectRun } = require("./orchestrator/inspect");
+const { runBatch } = require("./orchestrator/batch");
 const { loadDotEnv } = require("./tools/env");
 
 async function main() {
@@ -45,6 +46,26 @@ async function main() {
     return;
   }
 
+  if (command === "batch") {
+    const request = collectRequest(args.slice(1));
+    const batchFile = request.text;
+    const cwd = process.cwd();
+    const result = await runBatch({
+      cwd,
+      file: batchFile,
+      yes: request.flags.has("yes"),
+      dryRun: request.flags.has("dry-run"),
+      continueOnFailure: request.flags.has("continue-on-failure"),
+      llm: request.options.llm || process.env.VIBE_LLM || "offline",
+      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS
+    });
+
+    console.log(`\nBatch complete: ${result.batchId}`);
+    console.log(`Report: ${path.relative(cwd, result.reportPath)}`);
+    return;
+  }
+
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -84,6 +105,8 @@ function printHelp() {
 Usage:
   vibe run "create a snake game web app" [--yes] [--dry-run]
   vibe run "create a snake game web app" --llm deepseek --yes
+  vibe batch tasks.json --yes
+  vibe batch tasks.json --yes --continue-on-failure
   vibe inspect latest
   vibe inspect list
   vibe inspect .vibe/runs/<run-id>
@@ -94,6 +117,7 @@ Options:
   --llm      Model backend: offline or deepseek.
   --model    DeepSeek model name. Default: deepseek-v4-flash.
   --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.
+  --continue-on-failure  Batch mode only. Continue after a failed run.
 `);
 }
 

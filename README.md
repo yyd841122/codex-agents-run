@@ -48,10 +48,34 @@ node src/cli.js run "create a snake game web app" --yes
 node src/cli.js run "create a snake game web app" --dry-run
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
 node src/cli.js run "create a snake game web app" --llm deepseek --yes --deepseek-timeout-ms 120000
+node src/cli.js batch examples/tasks.sample.json --yes
+node src/cli.js batch examples/tasks.sample.json --yes --continue-on-failure
 node src/cli.js inspect latest
 node src/cli.js inspect list
 node src/cli.js inspect .vibe/runs/<run-id>
 ```
+
+Batch files can be a JSON array:
+
+```json
+[
+  "create a snake game web app",
+  "create a todo web app"
+]
+```
+
+Or an object with a `tasks` array:
+
+```json
+{
+  "tasks": [
+    { "requirement": "create a snake game web app" },
+    { "requirement": "create a todo web app" }
+  ]
+}
+```
+
+Batch run records are written to `.vibe/batches/<batch-id>/`.
 
 ## DeepSeek Setup
 

@@ -1,9 +1,11 @@
 const https = require("https");
 
-async function callDeepSeek({ apiKey, model, prompt, system }) {
+async function callDeepSeek({ apiKey, model, prompt, system, timeoutMs }) {
   if (!apiKey) {
     throw new Error("DEEPSEEK_API_KEY is required for DeepSeek execution.");
   }
+
+  const requestTimeoutMs = Number(timeoutMs || process.env.DEEPSEEK_TIMEOUT_MS || 90000);
 
   const payload = JSON.stringify({
     model: model || "deepseek-v4-flash",
@@ -51,6 +53,9 @@ async function callDeepSeek({ apiKey, model, prompt, system }) {
       });
     });
 
+    request.setTimeout(requestTimeoutMs, () => {
+      request.destroy(new Error(`DeepSeek request timed out after ${requestTimeoutMs}ms`));
+    });
     request.on("error", reject);
     request.write(payload);
     request.end();

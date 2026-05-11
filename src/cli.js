@@ -29,7 +29,8 @@ async function main() {
       yes: request.flags.has("yes"),
       dryRun: request.flags.has("dry-run"),
       llm: request.options.llm || process.env.VIBE_LLM || "offline",
-      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash"
+      model: request.options.model || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      deepseekTimeoutMs: request.options["deepseek-timeout-ms"] || process.env.DEEPSEEK_TIMEOUT_MS
     });
 
     console.log(`\nRun complete: ${result.runId}`);
@@ -38,11 +39,8 @@ async function main() {
   }
 
   if (command === "inspect") {
-    const runPath = args[1];
-    if (!runPath) {
-      throw new Error("Missing run path. Example: vibe inspect .vibe/runs/<run-id>");
-    }
-    const summary = inspectRun(path.resolve(process.cwd(), runPath));
+    const target = args[1] || "latest";
+    const summary = inspectRun(process.cwd(), target);
     console.log(summary);
     return;
   }
@@ -62,7 +60,7 @@ function collectRequest(args) {
       if (raw.includes("=")) {
         const [key, ...valueParts] = raw.split("=");
         options[key] = valueParts.join("=");
-      } else if (["llm", "model"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
+      } else if (["llm", "model", "deepseek-timeout-ms"].includes(raw) && args[index + 1] && !args[index + 1].startsWith("--")) {
         options[raw] = args[index + 1];
         index += 1;
       } else {
@@ -86,6 +84,8 @@ function printHelp() {
 Usage:
   vibe run "create a snake game web app" [--yes] [--dry-run]
   vibe run "create a snake game web app" --llm deepseek --yes
+  vibe inspect latest
+  vibe inspect list
   vibe inspect .vibe/runs/<run-id>
 
 Options:
@@ -93,6 +93,7 @@ Options:
   --dry-run  Generate plan, prompts, and report without writing project files.
   --llm      Model backend: offline or deepseek.
   --model    DeepSeek model name. Default: deepseek-v4-flash.
+  --deepseek-timeout-ms  DeepSeek request timeout. Default: 90000.
 `);
 }
 

@@ -57,6 +57,16 @@ function unresolvedFailures(taskResults) {
     if (task.id.includes("-retry-")) return false;
 
     if (task.status !== "failed") return false;
+    if (task.kind === "review") {
+      const rootId = task.id.replace(/-review-retry-\d+$/, "").replace(/-after-fix$/, "");
+      const reviewRetryPassed = taskResults.some((candidate) => (
+        candidate.kind === "review" &&
+        candidate.id.startsWith(`${rootId}-review-retry-`) &&
+        candidate.status === "completed"
+      ));
+      return !reviewRetryPassed;
+    }
+
     const retryPassed = taskResults.some((candidate) => (
       candidate.id.startsWith(`${task.id}-retry-`) && candidate.status === "completed"
     ));

@@ -31,9 +31,22 @@ async function runAgentTask({ task, plan, prompt, context }) {
   }
 
   if (task.agent === "reviewer") {
+    if (process.env.VIBE_FORCE_REVIEW_FAILURE === "1") {
+      return result(task, "failed", [], "Forced blocking review finding for fix loop verification.", [], {
+        findings: [
+          {
+            severity: "blocking",
+            file: "generated/snake-game/game.js",
+            issue: "Forced review failure.",
+            recommendation: "Resolve the forced review failure."
+          }
+        ]
+      });
+    }
+
     return result(task, "completed", [], "Reviewed acceptance criteria coverage for generated implementation.", [
       "Offline reviewer checks structure only; connect a real model for deeper code review."
-    ]);
+    ], { findings: [] });
   }
 
   if (task.agent === "fixer") {
@@ -49,7 +62,8 @@ async function runDeepSeekTask({ task, plan, prompt, context }) {
       apiKey: process.env.DEEPSEEK_API_KEY,
       model: context.model,
       prompt,
-      system: systemPromptFor(task)
+      system: systemPromptFor(task),
+      timeoutMs: context.deepseekTimeoutMs
     });
 
     const parsed = parseJson(response.content);
@@ -70,12 +84,16 @@ async function runDeepSeekTask({ task, plan, prompt, context }) {
       );
     }
 
+    const findings = Array.isArray(parsed.findings) ? parsed.findings : [];
+    const hasBlockingFinding = task.kind === "review" && findings.some((finding) => finding.severity === "blocking");
+
     return result(
       task,
-      parsed.status || "completed",
+      hasBlockingFinding ? "failed" : (parsed.status || "completed"),
       [],
       parsed.summary || "DeepSeek task completed.",
-      parsed.risks || []
+      parsed.risks || [],
+      { findings }
     );
   } catch (error) {
     return result(task, "failed", [], `DeepSeek task failed: ${formatError(error)}`, [
@@ -133,19 +151,28 @@ function parseJson(content) {
 }
 
 function systemPromptFor(task) {
-  if (task.kind === "code") {
+  if (task.kind === "code" || task.kind === "fix") {
     return [
       "You are a coding agent in a multi-agent workflow.",
       "Return only valid JSON.",
-      "For code tasks, include a files array with path and content.",
+      "For code and fix tasks, include a files array with path and full file content for every changed file.",
       "Do not write outside the assigned writable scope."
+    ].join(" ");
+  }
+
+  if (task.kind === "review") {
+    return [
+      "You are a strict code review agent in a multi-agent workflow.",
+      "Return only valid JSON.",
+      "Use findings with severity info, warning, or blocking.",
+      "Use blocking only for issues that should trigger rework before delivery."
     ].join(" ");
   }
 
   return "You are a specialized agent in a multi-agent workflow. Return only valid JSON.";
 }
 
-function result(task, status, changedFiles, summary, risks) {
+function result(task, status, changedFiles, summary, risks, extra = {}) {
   return {
     id: task.id,
     title: task.title,
@@ -155,7 +182,8 @@ function result(task, status, changedFiles, summary, risks) {
     changedFiles,
     summary,
     risks,
-    completedAt: new Date().toISOString()
+    completedAt: new Date().toISOString(),
+    ...extra
   };
 }
 

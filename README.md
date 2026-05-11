@@ -1,27 +1,27 @@
 # Vibe Agent MVP
 
-一个最小可运行的多 Agent 自动化 Vibe Coding 框架。
+A minimal multi-agent vibe coding orchestrator.
 
-目标流程：
+Target workflow:
 
 ```text
-用户需求
--> Orchestrator 拆解任务
--> 生成子 Agent 提示词
--> Runner 顺序执行任务
--> 自动测试 / 审查 / 最多返工一次
--> 生成执行报告
+User requirement
+-> Orchestrator creates a plan
+-> Child Agent prompts are generated
+-> Runner executes tasks in order
+-> Tests, review, and fix loops run automatically
+-> A final report is generated for user acceptance
 ```
 
-当前版本默认使用离线模拟 Agent，方便先验证流程。也可以通过 DeepSeek API 启用真实模型调用。
+The MVP runs offline by default for local workflow validation. It can also call DeepSeek through its OpenAI-compatible API.
 
-## 快速开始
+## Quick Start
 
 ```bash
 npm run vibe -- run "create a snake game web app" --yes
 ```
 
-执行后会生成：
+Generated run records:
 
 ```text
 .vibe/
@@ -32,6 +32,11 @@ npm run vibe -- run "create a snake game web app" --yes
     prompts/
     tasks/
     report.md
+```
+
+Generated project files are written under:
+
+```text
 generated/
   snake-game/
 ```
@@ -41,14 +46,16 @@ generated/
 ```bash
 node src/cli.js run "create a snake game web app" --yes
 node src/cli.js run "create a snake game web app" --dry-run
+node src/cli.js run "create a snake game web app" --llm deepseek --yes
+node src/cli.js run "create a snake game web app" --llm deepseek --yes --deepseek-timeout-ms 120000
+node src/cli.js inspect latest
+node src/cli.js inspect list
 node src/cli.js inspect .vibe/runs/<run-id>
 ```
 
-## 使用 DeepSeek
+## DeepSeek Setup
 
-DeepSeek API Key 填在环境变量 `DEEPSEEK_API_KEY`。
-
-PowerShell 示例：
+Set the DeepSeek API key with an environment variable:
 
 ```powershell
 $env:DEEPSEEK_API_KEY="sk-your-deepseek-api-key"
@@ -56,50 +63,67 @@ $env:DEEPSEEK_MODEL="deepseek-v4-flash"
 node src/cli.js run "create a snake game web app" --llm deepseek --yes
 ```
 
-也可以创建 `.env` 文件，当前 MVP 会自动读取项目根目录下的 `.env`：
+You can also create a `.env` file at the project root:
 
 ```text
 DEEPSEEK_API_KEY=sk-your-deepseek-api-key
 DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_TIMEOUT_MS=90000
 VIBE_LLM=deepseek
 ```
 
-`.env` 已加入 `.gitignore`，不要提交真实 API Key。
+`.env` is ignored by Git. Do not commit real API keys.
 
-DeepSeek 官方 OpenAI-compatible 配置：
+DeepSeek configuration:
 
 ```text
 base_url: https://api.deepseek.com
+endpoint: /chat/completions
 api_key: DEEPSEEK_API_KEY
 default model: deepseek-v4-flash
+default timeout: 90000ms
 ```
 
-## MVP Agent
+## MVP Agents
 
-- `orchestrator`: 主控协调，只负责任务推进与汇总
-- `planner`: 需求拆解、项目结构规划
-- `coder`: 写入代码
-- `tester`: 运行测试命令并总结错误
-- `reviewer`: 审查产物与验收条件
-- `fixer`: 根据测试或审查结果返工一次
-- `reporter`: 生成交付报告
+- `orchestrator`: Coordinates workflow only.
+- `planner`: Converts requirements into tasks and acceptance criteria.
+- `coder`: Implements files within the declared scope.
+- `tester`: Runs verification commands and summarizes failures.
+- `reviewer`: Reviews generated files against acceptance criteria.
+- `fixer`: Applies focused fixes based on failed tests or blocking review findings.
+- `reporter`: Produces the final delivery report.
 
-## 安全边界
+Review Agent reads generated files and can return structured `findings`. Any finding with `severity: "blocking"` triggers the Fix Agent.
 
-第一版安全策略：
+## Fix Policy
 
-- 所有写入限制在当前工作区内
-- 任务声明可写范围
-- Shell 命令默认走允许列表
-- 每个 run 都记录 plan、prompt、task log、report
-- 每个 run 都记录 Git 前后状态和 diff 统计
-- 默认不执行危险命令
+Fix Agent is limited to 3 attempts.
 
-## 下一步
+```text
+failed test or blocking review finding
+-> fix attempt 1
+-> retry checks
+-> fix attempt 2
+-> retry checks
+-> fix attempt 3
+-> retry checks
+-> manual intervention report if still unresolved
+```
 
-建议下一阶段接入真实 LLM Agent：
+When the system cannot resolve an issue after 3 attempts, it writes `manual-intervention-required.json` and the final report explains why a human needs to step in.
 
-1. 强化模型输出 JSON 修复与重试。
-2. 增加 Git 快照。
-3. 增加真实测试失败后的多轮返工闭环。
-4. 增加任务并行与冲突合并策略。
+## Safety Boundaries
+
+- Writes are constrained to the current workspace.
+- Each task declares writable scopes.
+- Shell commands are checked against an allowlist.
+- Each run records plan, prompts, task logs, report, and Git before/after snapshots.
+- `.env`, `.vibe/runs/`, and `generated/` are excluded from Git by default.
+
+## Next Milestones
+
+1. Improve model JSON repair and retry.
+2. Add optional automatic Git checkpoint commits.
+3. Make Planner generate dynamic task graphs for different project types.
+4. Add task parallelism and conflict handling.

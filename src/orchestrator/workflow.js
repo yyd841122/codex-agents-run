@@ -5,6 +5,7 @@ const { runAgentTask } = require("../agents/agent-runner");
 const { runAllowedCommand } = require("../tools/shell");
 const { ensureDir, writeJson, writeText } = require("../tools/files");
 const { captureGitSnapshot } = require("../tools/git");
+const { collectFileContext } = require("../tools/file-context");
 const { createReport } = require("../reports/report-generator");
 
 async function runWorkflow(options) {
@@ -23,7 +24,8 @@ async function runWorkflow(options) {
     dryRun: options.dryRun,
     yes: options.yes,
     llm: options.llm || "offline",
-    model: options.model || "deepseek-v4-flash"
+    model: options.model || "deepseek-v4-flash",
+    deepseekTimeoutMs: options.deepseekTimeoutMs
   };
 
   writeJson(path.join(runDir, "git-before.json"), captureGitSnapshot(options.cwd));
@@ -60,9 +62,10 @@ async function runWorkflow(options) {
       continue;
     }
 
-    const prompt = buildPrompt({ plan, task });
+    const prompt = createPromptWithContext({ plan, task, context });
     writeText(path.join(promptsDir, `${task.id}-${task.agent}.md`), prompt);
 
+    logTaskStart(task, context);
     const result = await runAgentTask({ task, plan, prompt, context });
     taskResults.push(result);
     writeJson(path.join(tasksDir, `${task.id}.json`), result);
@@ -76,7 +79,8 @@ async function runWorkflow(options) {
       const merged = {
         ...result,
         shell: testResult,
-        status: testResult.exitCode === 0 ? "completed" : "failed"
+        status: testResult.exitCode === 0 ? "completed" : "failed",
+        summary: summarizeShellCheck(testResult)
       };
       taskResults[taskResults.length - 1] = merged;
       writeJson(path.join(tasksDir, `${task.id}.json`), merged);
@@ -87,25 +91,37 @@ async function runWorkflow(options) {
 
   if (!options.dryRun) {
     for (let attempt = 1; attempt <= plan.fixPolicy.maxAttempts; attempt += 1) {
-      const failedTests = unresolvedFailedTests(taskResults);
-      if (!failedTests.length) {
+      let failedTests = unresolvedFailedTests(taskResults);
+      let failedReviews = unresolvedFailedReviews(taskResults);
+      let failedChecks = [...failedTests, ...failedReviews];
+
+      if (!failedChecks.length && fixResults.length > 0) {
+        await runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksDir, context });
+        failedTests = unresolvedFailedTests(taskResults);
+        failedReviews = unresolvedFailedReviews(taskResults);
+        failedChecks = [...failedTests, ...failedReviews];
+      }
+
+      if (!failedChecks.length) {
         break;
       }
 
       const fixTask = {
         id: `task-fix-${String(attempt).padStart(3, "0")}`,
-        title: `Fix failed checks, attempt ${attempt} of ${plan.fixPolicy.maxAttempts}`,
+        title: `Fix failed checks and review findings, attempt ${attempt} of ${plan.fixPolicy.maxAttempts}`,
         agent: "fixer",
         kind: "fix",
         scope: plan.writeScopes,
         acceptance: [
-          "Previously failed checks pass",
+          "Previously failed tests pass",
+          "Blocking review findings are resolved",
           `This is fix attempt ${attempt}; stop after ${plan.fixPolicy.maxAttempts} attempts and report manual intervention if unresolved`
         ],
-        dependsOn: failedTests.map((task) => task.id)
+        dependsOn: failedChecks.map((task) => task.id)
       };
-      const prompt = buildPrompt({ plan, task: fixTask, priorResults: taskResults });
+      const prompt = createPromptWithContext({ plan, task: fixTask, context, priorResults: taskResults });
       writeText(path.join(promptsDir, `${fixTask.id}-${fixTask.agent}.md`), prompt);
+      logTaskStart(fixTask, context);
       const fixResult = await runAgentTask({ task: fixTask, plan, prompt, context });
       writeJson(path.join(tasksDir, `${fixTask.id}.json`), fixResult);
       taskResults.push(fixResult);
@@ -136,10 +152,42 @@ async function runWorkflow(options) {
         taskResults.push(retryResult);
         writeJson(path.join(tasksDir, `${retryResult.id}.json`), retryResult);
       }
+
+      for (const failedReview of failedReviews) {
+        const reviewTask = plan.tasks.find((task) => task.id === rootTaskId(failedReview.id));
+        if (!reviewTask) {
+          continue;
+        }
+
+        const reviewRetryTask = {
+          ...reviewTask,
+          id: `${reviewTask.id}-review-retry-${attempt}`,
+          title: `Retry ${reviewTask.title}, attempt ${attempt}`,
+          dependsOn: [fixResult.id]
+        };
+        const reviewRetryPrompt = createPromptWithContext({
+          plan,
+          task: reviewRetryTask,
+          context,
+          priorResults: taskResults
+        });
+        writeText(path.join(promptsDir, `${reviewRetryTask.id}-${reviewRetryTask.agent}.md`), reviewRetryPrompt);
+        logTaskStart(reviewRetryTask, context);
+        const reviewRetry = await runAgentTask({
+          task: reviewRetryTask,
+          plan,
+          prompt: reviewRetryPrompt,
+          context
+        });
+        taskResults.push(reviewRetry);
+        writeJson(path.join(tasksDir, `${reviewRetryTask.id}.json`), reviewRetry);
+      }
     }
 
     const remainingFailedTests = unresolvedFailedTests(taskResults);
-    if (remainingFailedTests.length) {
+    const remainingFailedReviews = unresolvedFailedReviews(taskResults);
+    const remainingFailedChecks = [...remainingFailedTests, ...remainingFailedReviews];
+    if (remainingFailedChecks.length) {
       const manualIntervention = {
         id: "manual-intervention-required",
         title: "Manual intervention required",
@@ -147,14 +195,12 @@ async function runWorkflow(options) {
         kind: "report",
         status: "failed",
         changedFiles: [],
-        summary: `Fix Agent reached ${plan.fixPolicy.maxAttempts} attempts without resolving all failed checks. Human intervention is required.`,
-        risks: remainingFailedTests.map((task) => summarizeFailedCheck(task)),
+        summary: `Fix Agent reached ${plan.fixPolicy.maxAttempts} attempts without resolving all failed tests or blocking review findings. Human intervention is required.`,
+        risks: remainingFailedChecks.map((task) => summarizeFailedCheck(task)),
         completedAt: new Date().toISOString()
       };
       taskResults.push(manualIntervention);
       writeJson(path.join(tasksDir, `${manualIntervention.id}.json`), manualIntervention);
-    } else if (fixResults.length > 0) {
-      await runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksDir, context });
     }
   }
 
@@ -178,6 +224,25 @@ function unresolvedFailedTests(taskResults) {
   });
 }
 
+function unresolvedFailedReviews(taskResults) {
+  return taskResults.filter((task) => {
+    if (task.status !== "failed" || task.kind !== "review") {
+      return false;
+    }
+
+    const rootId = rootTaskId(task.id);
+    return !taskResults.some((candidate) => (
+      candidate.kind === "review" &&
+      candidate.id.startsWith(`${rootId}-review-retry-`) &&
+      candidate.status === "completed"
+    ));
+  });
+}
+
+function rootTaskId(taskId) {
+  return taskId.replace(/-retry-\d+$/, "").replace(/-review-retry-\d+$/, "").replace(/-after-fix$/, "");
+}
+
 async function runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksDir, context }) {
   const skippedReview = taskResults.find((task) => task.kind === "review" && task.status === "skipped");
   if (!skippedReview) {
@@ -196,8 +261,9 @@ async function runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksD
     title: `${reviewTask.title} after fix`,
     dependsOn: successfulRetries.map((task) => task.id)
   };
-  const reviewPrompt = buildPrompt({ plan, task: reviewAfterFixTask, priorResults: taskResults });
+  const reviewPrompt = createPromptWithContext({ plan, task: reviewAfterFixTask, context, priorResults: taskResults });
   writeText(path.join(promptsDir, `${reviewAfterFixTask.id}-${reviewAfterFixTask.agent}.md`), reviewPrompt);
+  logTaskStart(reviewAfterFixTask, context);
   const reviewAfterFix = await runAgentTask({
     task: reviewAfterFixTask,
     plan,
@@ -209,10 +275,53 @@ async function runReviewAfterFixIfNeeded({ plan, taskResults, promptsDir, tasksD
 }
 
 function summarizeFailedCheck(task) {
+  if (task.kind === "review") {
+    const findings = Array.isArray(task.findings) ? task.findings : [];
+    const blocking = findings.filter((finding) => finding.severity === "blocking");
+    const details = blocking.length ? blocking.map((finding) => (
+      `${finding.file || "unknown file"}: ${finding.issue || finding.recommendation || "Blocking review finding"}`
+    )).join("; ") : (task.summary || "Blocking review failed.");
+    return `${task.id} has unresolved blocking review findings: ${details.slice(0, 600)}`;
+  }
+
   const stderr = task.shell && task.shell.stderr ? task.shell.stderr.trim() : "";
   const stdout = task.shell && task.shell.stdout ? task.shell.stdout.trim() : "";
   const details = stderr || stdout || "No command output captured.";
   return `${task.id} failed command "${task.shell.command}" with exit ${task.shell.exitCode}: ${details.slice(0, 600)}`;
+}
+
+function summarizeShellCheck(shell) {
+  if (shell.exitCode === 0) {
+    const details = shell.stdout && shell.stdout.trim()
+      ? ` Output: ${shell.stdout.trim().slice(0, 300)}`
+      : "";
+    return `Shell check passed: ${shell.command} exited 0.${details}`;
+  }
+
+  const stderr = shell.stderr && shell.stderr.trim() ? shell.stderr.trim() : "";
+  const stdout = shell.stdout && shell.stdout.trim() ? shell.stdout.trim() : "";
+  const details = stderr || stdout || "No command output captured.";
+  return `Shell check failed: ${shell.command} exited ${shell.exitCode}. ${details.slice(0, 300)}`;
+}
+
+function createPromptWithContext({ plan, task, context, priorResults = [] }) {
+  const needsFileContext = task.kind === "review" || task.kind === "fix";
+  const fileContext = needsFileContext
+    ? collectFileContext({ cwd: context.cwd, scopes: task.scope })
+    : [];
+
+  return buildPrompt({ plan, task, priorResults, fileContext });
+}
+
+function logTaskStart(task, context) {
+  if (context.silent) {
+    return;
+  }
+
+  const backend = context.dryRun
+    ? "dry-run"
+    : (context.llm === "deepseek" ? `deepseek/${context.model}` : context.llm);
+  console.log(`Running ${task.id} (${task.agent}, ${task.kind}) with ${backend}...`);
 }
 
 function createRunId() {

@@ -1,4 +1,4 @@
-function buildPrompt({ plan, task, priorResults = [] }) {
+function buildPrompt({ plan, task, priorResults = [], fileContext = [] }) {
   return [
     `# Agent: ${task.agent}`,
     "",
@@ -25,6 +25,9 @@ function buildPrompt({ plan, task, priorResults = [] }) {
     "- Only work inside declared writable scope.",
     "- Return structured output with status, changed files, summary, and risks.",
     "- Do not take over orchestration responsibilities.",
+    task.kind === "review"
+      ? "- Mark findings as blocking only when they must be fixed before user acceptance."
+      : "",
     "",
     "## Required Output Format",
     "Return only JSON. Do not wrap it in Markdown.",
@@ -41,8 +44,24 @@ function buildPrompt({ plan, task, priorResults = [] }) {
       : JSON.stringify({
         status: "completed",
         summary: "What you did",
-        risks: []
+        risks: [],
+        findings: task.kind === "review" ? [
+          {
+            severity: "info | warning | blocking",
+            file: `${plan.outputDir}/index.html`,
+            issue: "Finding description",
+            recommendation: "Suggested change"
+          }
+        ] : []
       }, null, 2),
+    "",
+    fileContext.length ? "## Current Files" : "",
+    ...fileContext.map((file) => [
+      `### ${file.path}${file.truncated ? " (truncated)" : ""}`,
+      "```",
+      file.content,
+      "```"
+    ].join("\n")),
     "",
     priorResults.length ? "## Prior Results" : "",
     ...priorResults.map((result) => [
